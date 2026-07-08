@@ -7,6 +7,26 @@ namespace LetterGarden.Core.Tests
     public class GameSessionTests
     {
         [Test]
+        public void TrySelectLetter_ReturnsFalse_WhenSameIndexIsSelectedTwice()
+        {
+            PuzzleLevel level = new PuzzleLevel(
+                "level-1",
+                new[] { 'C', 'A', 'T' },
+                new[] { "CAT" },
+                1);
+            GameSession session = new GameSession(level);
+
+            bool firstSelection = session.TrySelectLetter(0);
+            bool secondSelection = session.TrySelectLetter(0);
+
+            Assert.IsTrue(firstSelection);
+            Assert.IsFalse(secondSelection);
+            Assert.IsTrue(session.IsLetterSelected(0));
+            CollectionAssert.AreEqual(new[] { 0 }, session.SelectedLetterIndices);
+            Assert.AreEqual("C", session.CurrentWord);
+        }
+
+        [Test]
         public void SubmitCurrentWord_FindsWordsAndTracksCompletion()
         {
             PuzzleLevel level = new PuzzleLevel(
