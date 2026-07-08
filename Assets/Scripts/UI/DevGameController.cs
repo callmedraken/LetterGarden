@@ -26,6 +26,7 @@ namespace LetterGarden.UI
         [SerializeField] private Button nextLevelAvailableButton;
 
         private readonly List<PuzzleLevel> levels = new List<PuzzleLevel>();
+        private readonly List<string> dictionaryWords = new List<string>();
         private readonly List<Button> spawnedLetterButtons = new List<Button>();
         private GameSession gameSession;
         private int currentLevelIndex;
@@ -99,6 +100,7 @@ namespace LetterGarden.UI
         private void LoadLevels()
         {
             levels.Clear();
+            LoadDictionary();
 
             TextAsset levelsJson = Resources.Load<TextAsset>("Levels/dev_levels");
             if (levelsJson == null)
@@ -120,12 +122,49 @@ namespace LetterGarden.UI
 
         private PuzzleLevel CreatePuzzleLevel(LevelData levelData)
         {
+            char[] availableLetters = levelData.letters.ToCharArray();
+            string[] requiredWords = levelData.requiredWords ?? Array.Empty<string>();
+            List<string> acceptedBonusSource = new List<string>(dictionaryWords);
+
+            if (levelData.bonusWords != null)
+            {
+                acceptedBonusSource.AddRange(levelData.bonusWords);
+            }
+
+            IReadOnlyCollection<string> bonusWords = BonusWordGenerator.GenerateBonusWords(
+                acceptedBonusSource,
+                availableLetters,
+                requiredWords);
+
             return new PuzzleLevel(
                 levelData.levelId,
-                levelData.letters.ToCharArray(),
-                levelData.requiredWords ?? Array.Empty<string>(),
-                levelData.bonusWords ?? Array.Empty<string>(),
+                availableLetters,
+                requiredWords,
+                bonusWords,
                 levelData.difficulty);
+        }
+
+        private void LoadDictionary()
+        {
+            dictionaryWords.Clear();
+
+            TextAsset dictionaryText = Resources.Load<TextAsset>("Dictionaries/common_words");
+            if (dictionaryText == null)
+            {
+                return;
+            }
+
+            string[] words = dictionaryText.text.Split(
+                new[] { '\r', '\n' },
+                StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (string word in words)
+            {
+                if (!string.IsNullOrWhiteSpace(word))
+                {
+                    dictionaryWords.Add(word.Trim().ToUpperInvariant());
+                }
+            }
         }
 
         private void SetupLetterButtons(PuzzleLevel level)
