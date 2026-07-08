@@ -12,8 +12,15 @@ namespace LetterGarden.UI
         [SerializeField] private float tileSpacing = 8f;
         [SerializeField] private float rowSpacing = 12f;
         [SerializeField] private int fontSize = 32;
+        [SerializeField] private float minimumTileSize = 34f;
+        [SerializeField] private float minimumSpacing = 4f;
+        [SerializeField] private int minimumFontSize = 20;
 
         private readonly List<GameObject> generatedRows = new List<GameObject>();
+        private float currentTileSize;
+        private float currentTileSpacing;
+        private float currentRowSpacing;
+        private int currentFontSize;
 
         public void Render(IReadOnlyCollection<string> requiredWords, IReadOnlyCollection<string> foundRequiredWords)
         {
@@ -24,6 +31,7 @@ namespace LetterGarden.UI
                 return;
             }
 
+            CalculateLayout(requiredWords);
             ApplyBoardLayout();
 
             HashSet<string> foundWords = new HashSet<string>(
@@ -63,7 +71,7 @@ namespace LetterGarden.UI
                 layoutGroup = boardContainer.gameObject.AddComponent<VerticalLayoutGroup>();
             }
 
-            layoutGroup.spacing = rowSpacing;
+            layoutGroup.spacing = currentRowSpacing;
             layoutGroup.childAlignment = TextAnchor.MiddleCenter;
             layoutGroup.childControlWidth = false;
             layoutGroup.childControlHeight = false;
@@ -78,11 +86,11 @@ namespace LetterGarden.UI
             generatedRows.Add(row);
 
             RectTransform rowTransform = row.GetComponent<RectTransform>();
-            float rowWidth = letterCount * tileSize + Mathf.Max(0, letterCount - 1) * tileSpacing;
-            rowTransform.sizeDelta = new Vector2(rowWidth, tileSize);
+            float rowWidth = letterCount * currentTileSize + Mathf.Max(0, letterCount - 1) * currentTileSpacing;
+            rowTransform.sizeDelta = new Vector2(rowWidth, currentTileSize);
 
             HorizontalLayoutGroup layoutGroup = row.GetComponent<HorizontalLayoutGroup>();
-            layoutGroup.spacing = tileSpacing;
+            layoutGroup.spacing = currentTileSpacing;
             layoutGroup.childAlignment = TextAnchor.MiddleCenter;
             layoutGroup.childControlWidth = false;
             layoutGroup.childControlHeight = false;
@@ -98,7 +106,7 @@ namespace LetterGarden.UI
             tile.transform.SetParent(parent, false);
 
             RectTransform tileTransform = tile.GetComponent<RectTransform>();
-            tileTransform.sizeDelta = new Vector2(tileSize, tileSize);
+            tileTransform.sizeDelta = new Vector2(currentTileSize, currentTileSize);
 
             Image background = tile.GetComponent<Image>();
             background.color = Color.white;
@@ -114,9 +122,57 @@ namespace LetterGarden.UI
 
             TextMeshProUGUI tileText = textObject.GetComponent<TextMeshProUGUI>();
             tileText.text = text;
-            tileText.fontSize = fontSize;
+            tileText.fontSize = currentFontSize;
             tileText.alignment = TextAlignmentOptions.Center;
             tileText.color = Color.black;
+        }
+
+        private void CalculateLayout(IReadOnlyCollection<string> requiredWords)
+        {
+            float baseTileSize = Mathf.Max(1f, tileSize);
+            float minimumAllowedTileSize = Mathf.Min(minimumTileSize, baseTileSize);
+            int rowCount = requiredWords.Count;
+            int longestWordLength = 0;
+
+            foreach (string word in requiredWords)
+            {
+                if (!string.IsNullOrEmpty(word) && word.Length > longestWordLength)
+                {
+                    longestWordLength = word.Length;
+                }
+            }
+
+            currentTileSpacing = Mathf.Max(minimumSpacing, Mathf.Min(tileSpacing, baseTileSize * 0.12f));
+            currentRowSpacing = Mathf.Max(minimumSpacing, Mathf.Min(rowSpacing, baseTileSize * 0.16f));
+
+            Vector2 availableSize = boardContainer.rect.size;
+            if (availableSize.x <= 0f || availableSize.y <= 0f)
+            {
+                availableSize = boardContainer.sizeDelta;
+            }
+
+            float widthLimitedTileSize = baseTileSize;
+            if (longestWordLength > 0 && availableSize.x > 0f)
+            {
+                widthLimitedTileSize =
+                    (availableSize.x - Mathf.Max(0, longestWordLength - 1) * currentTileSpacing) / longestWordLength;
+            }
+
+            float heightLimitedTileSize = baseTileSize;
+            if (rowCount > 0 && availableSize.y > 0f)
+            {
+                heightLimitedTileSize =
+                    (availableSize.y - Mathf.Max(0, rowCount - 1) * currentRowSpacing) / rowCount;
+            }
+
+            currentTileSize = Mathf.Clamp(
+                Mathf.Min(baseTileSize, widthLimitedTileSize, heightLimitedTileSize),
+                minimumAllowedTileSize,
+                baseTileSize);
+
+            currentFontSize = Mathf.Max(
+                minimumFontSize,
+                Mathf.RoundToInt(fontSize * (currentTileSize / baseTileSize)));
         }
     }
 }
