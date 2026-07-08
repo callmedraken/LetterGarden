@@ -13,7 +13,11 @@ namespace LetterGarden.UI
         [SerializeField] private TMP_Text currentWordText;
         [SerializeField] private TMP_Text foundWordsText;
         [SerializeField] private TMP_Text statusText;
-        [SerializeField] private Button[] letterButtons;
+        [SerializeField] private TMP_Text levelText;
+        [SerializeField] private RectTransform letterButtonContainer;
+        [SerializeField] private Button letterButtonPrefab;
+        [SerializeField] private float letterButtonRadius = 180f;
+        [SerializeField] private float letterButtonFontSize = 64f;
         [SerializeField] private Button submitButton;
         [SerializeField] private Button clearButton;
         [SerializeField] private Button backspaceButton;
@@ -24,6 +28,8 @@ namespace LetterGarden.UI
         [SerializeField] private Button nextLevelAvailableButton;
 
         private readonly List<PuzzleLevel> levels = new List<PuzzleLevel>();
+        private readonly List<string> dictionaryWords = new List<string>();
+        private readonly List<Button> spawnedLetterButtons = new List<Button>();
         private GameSession gameSession;
         private int currentLevelIndex;
         private bool hasShownLevelCompletePanel;
@@ -67,6 +73,7 @@ namespace LetterGarden.UI
             statusText.text = string.Empty;
             currentWordText.text = string.Empty;
             foundWordsText.text = string.Empty;
+            levelText.text = "Level " + (currentLevelIndex + 1) + " / " + levels.Count;
 
             SetupLetterButtons(gameSession.CurrentLevel);
             UpdateUI();
@@ -75,6 +82,8 @@ namespace LetterGarden.UI
         private void LoadLevels()
         {
             levels.Clear();
+            dictionaryWords.Clear();
+            dictionaryWords.AddRange(LoadDictionaryWords());
 
             TextAsset levelsJson = Resources.Load<TextAsset>("Levels/dev_levels");
             if (levelsJson == null)
@@ -96,39 +105,88 @@ namespace LetterGarden.UI
 
         private PuzzleLevel CreatePuzzleLevel(LevelData levelData)
         {
+            IReadOnlyCollection<string> generatedBonusWords = BonusWordGenerator.GenerateBonusWords(
+                dictionaryWords,
+                levelData.letters.ToCharArray(),
+                levelData.requiredWords ?? Array.Empty<string>());
+            List<string> bonusWords = generatedBonusWords
+                .Concat(levelData.bonusWords ?? Array.Empty<string>())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             return new PuzzleLevel(
                 levelData.levelId,
                 levelData.letters.ToCharArray(),
                 levelData.requiredWords ?? Array.Empty<string>(),
-                levelData.bonusWords ?? Array.Empty<string>(),
+                bonusWords,
                 levelData.difficulty);
+        }
+
+        private List<string> LoadDictionaryWords()
+        {
+            TextAsset dictionaryText = Resources.Load<TextAsset>("Dictionaries/common_words");
+            if (dictionaryText == null)
+            {
+                return new List<string>();
+            }
+
+            return dictionaryText.text
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(word => word.Trim().ToUpperInvariant())
+                .Where(word => word.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private void SetupLetterButtons(PuzzleLevel level)
         {
-            for (int i = 0; i < letterButtons.Length; i++)
+            ClearLetterButtons();
+
+            int letterCount = level.AvailableLetters.Count;
+
+            for (int i = 0; i < letterCount; i++)
             {
                 int letterIndex = i;
-                Button button = letterButtons[i];
-                button.onClick.RemoveAllListeners();
-
-                if (letterIndex >= level.AvailableLetters.Count)
-                {
-                    button.gameObject.SetActive(false);
-                    continue;
-                }
-
-                button.gameObject.SetActive(true);
+                Button button = Instantiate(letterButtonPrefab, letterButtonContainer);
                 button.interactable = true;
+                SetLetterButtonPosition(button, letterIndex, letterCount);
 
                 TMP_Text buttonText = button.GetComponentInChildren<TMP_Text>();
                 if (buttonText != null)
                 {
                     buttonText.text = level.AvailableLetters[letterIndex].ToString();
+                    buttonText.fontSize = letterButtonFontSize;
+                    buttonText.alignment = TextAlignmentOptions.Center;
                 }
 
                 button.onClick.AddListener(() => SelectLetter(letterIndex));
+                spawnedLetterButtons.Add(button);
             }
+        }
+
+        private void ClearLetterButtons()
+        {
+            foreach (Button button in spawnedLetterButtons)
+            {
+                if (button != null)
+                {
+                    Destroy(button.gameObject);
+                }
+            }
+
+            spawnedLetterButtons.Clear();
+        }
+
+        private void SetLetterButtonPosition(Button button, int index, int totalButtons)
+        {
+            RectTransform buttonTransform = button.GetComponent<RectTransform>();
+            float angle = 360f / totalButtons * index;
+            float radians = angle * Mathf.Deg2Rad;
+            Vector2 position = new Vector2(
+                Mathf.Sin(radians) * letterButtonRadius,
+                Mathf.Cos(radians) * letterButtonRadius);
+
+            buttonTransform.anchoredPosition = position;
         }
 
         private void SelectLetter(int index)
@@ -205,10 +263,9 @@ namespace LetterGarden.UI
             currentWordText.text = string.IsNullOrEmpty(gameSession.CurrentWord) ? "_" : gameSession.CurrentWord;
             foundWordsText.text = GetFoundWordsText();
 
-            for (int i = 0; i < letterButtons.Length; i++)
+            for (int i = 0; i < spawnedLetterButtons.Count; i++)
             {
-                bool hasMatchingLetter = i < gameSession.CurrentLevel.AvailableLetters.Count;
-                letterButtons[i].interactable = hasMatchingLetter && !gameSession.IsLetterSelected(i);
+                spawnedLetterButtons[i].interactable = !gameSession.IsLetterSelected(i);
             }
         }
 
