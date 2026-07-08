@@ -253,6 +253,7 @@ namespace LetterGarden.UI
         {
             levelCompletePanel.SetActive(false);
             isLevelCompletePanelOpen = false;
+            nextLevelAvailableButton.gameObject.SetActive(true);
             statusText.text = "Keep playing for bonus words.";
         }
 
@@ -260,6 +261,7 @@ namespace LetterGarden.UI
         {
             int nextLevelIndex = currentLevelIndex + 1;
             levelCompletePanel.SetActive(false);
+            nextLevelAvailableButton.gameObject.SetActive(false);
             isLevelCompletePanelOpen = false;
 
             if (nextLevelIndex < levels.Count)
@@ -282,7 +284,6 @@ namespace LetterGarden.UI
             isLevelCompletePanelOpen = true;
             levelCompleteSummaryText.text = GetLevelCompleteSummaryText();
             levelCompletePanel.SetActive(true);
-            nextLevelAvailableButton.gameObject.SetActive(true);
         }
 
         private void UpdateUI()
