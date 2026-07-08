@@ -37,6 +37,22 @@
                 "AT"
             ],
             "difficulty": 2
+        },
+        {
+            "levelId": "level-4-stream",
+            "letters": "STREAM",
+            "requiredWords": [
+                "STREAM",
+                "MASTER",
+                "TAMERS",
+                "STEAM",
+                "TEAMS",
+                "STARE",
+                "TEARS",
+                "RATES"
+            ],
+            "bonusWords": [],
+            "difficulty": 3
         }
     ]
 }
