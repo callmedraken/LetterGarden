@@ -317,6 +317,7 @@ namespace LetterGarden.UI
                 levelCompletePanel.SetActive(true);
             }
 
+            HideNextLevelAvailableButton();
             HideLetterButtonContainer();
         }
 
@@ -480,6 +481,7 @@ namespace LetterGarden.UI
         {
             if (nextLevelAvailableButton != null)
             {
+                nextLevelAvailableButton.interactable = true;
                 nextLevelAvailableButton.gameObject.SetActive(true);
             }
         }
