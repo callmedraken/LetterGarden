@@ -14,6 +14,7 @@ namespace LetterGarden.UI
         [SerializeField] private TMP_Text statusText;
         [SerializeField] private TMP_Text levelText;
         [SerializeField] private RequiredWordBoardView requiredWordBoardView;
+        [SerializeField] private LetterDragPathView letterDragPathView;
         [SerializeField] private RectTransform letterButtonContainer;
         [SerializeField] private Button letterButtonPrefab;
         [SerializeField] private float letterButtonRadius = 170f;
@@ -31,6 +32,7 @@ namespace LetterGarden.UI
         private bool hasShownLevelCompletePanel;
         private bool isLevelCompletePanelOpen;
         private bool isDraggingLetters;
+        private int lastDragLetterIndex = -1;
 
         private void Start()
         {
@@ -75,10 +77,12 @@ namespace LetterGarden.UI
             hasShownLevelCompletePanel = false;
             isLevelCompletePanelOpen = false;
             isDraggingLetters = false;
+            lastDragLetterIndex = -1;
 
             HideLevelCompletePanel();
             HideNextLevelAvailableButton();
             ShowLetterButtonContainer();
+            ClearLetterDragPath();
             SetStatusText(string.Empty);
             SetCurrentWordText(string.Empty);
             SetFoundWordsText(string.Empty);
@@ -196,8 +200,15 @@ namespace LetterGarden.UI
             }
 
             isDraggingLetters = true;
+            lastDragLetterIndex = -1;
             gameSession.ClearCurrentWord();
-            gameSession.TrySelectLetter(index);
+            ClearLetterDragPath();
+
+            if (gameSession.TrySelectLetter(index))
+            {
+                lastDragLetterIndex = index;
+            }
+
             UpdateUI();
         }
 
@@ -208,7 +219,12 @@ namespace LetterGarden.UI
                 return;
             }
 
-            gameSession.TrySelectLetter(index);
+            if (gameSession.TrySelectLetter(index))
+            {
+                AddLetterDragConnection(lastDragLetterIndex, index);
+                lastDragLetterIndex = index;
+            }
+
             UpdateUI();
         }
 
@@ -220,8 +236,10 @@ namespace LetterGarden.UI
             }
 
             isDraggingLetters = false;
+            lastDragLetterIndex = -1;
             SubmitCurrentWord();
             ResetLetterButtonVisuals();
+            ClearLetterDragPath();
         }
 
         private void SubmitCurrentWord()
@@ -257,6 +275,7 @@ namespace LetterGarden.UI
             HideLevelCompletePanel();
             isLevelCompletePanelOpen = false;
             isDraggingLetters = false;
+            lastDragLetterIndex = -1;
 
             if (nextLevelIndex < levels.Count)
             {
@@ -285,6 +304,8 @@ namespace LetterGarden.UI
             hasShownLevelCompletePanel = true;
             isLevelCompletePanelOpen = true;
             isDraggingLetters = false;
+            lastDragLetterIndex = -1;
+            ClearLetterDragPath();
 
             if (levelCompleteSummaryText != null)
             {
@@ -335,6 +356,38 @@ namespace LetterGarden.UI
 
                 button.interactable = true;
                 button.transform.localScale = Vector3.one;
+            }
+        }
+
+        private void AddLetterDragConnection(int fromIndex, int toIndex)
+        {
+            if (letterDragPathView == null
+                || fromIndex < 0
+                || toIndex < 0
+                || fromIndex >= spawnedLetterButtons.Count
+                || toIndex >= spawnedLetterButtons.Count)
+            {
+                return;
+            }
+
+            Button fromButton = spawnedLetterButtons[fromIndex];
+            Button toButton = spawnedLetterButtons[toIndex];
+
+            if (fromButton == null || toButton == null)
+            {
+                return;
+            }
+
+            RectTransform fromTransform = fromButton.GetComponent<RectTransform>();
+            RectTransform toTransform = toButton.GetComponent<RectTransform>();
+            letterDragPathView.AddConnection(fromTransform, toTransform);
+        }
+
+        private void ClearLetterDragPath()
+        {
+            if (letterDragPathView != null)
+            {
+                letterDragPathView.Clear();
             }
         }
 
