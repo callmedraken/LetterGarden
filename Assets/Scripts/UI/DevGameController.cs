@@ -255,17 +255,23 @@ namespace LetterGarden.UI
         {
             int nextLevelIndex = currentLevelIndex + 1;
             HideLevelCompletePanel();
-            HideNextLevelAvailableButton();
             isLevelCompletePanelOpen = false;
             isDraggingLetters = false;
 
             if (nextLevelIndex < levels.Count)
             {
+                HideNextLevelAvailableButton();
                 LoadLevel(nextLevelIndex);
                 return;
             }
 
-            HideLetterButtonContainer();
+            ShowLetterButtonContainer();
+            if (nextLevelAvailableButton != null)
+            {
+                nextLevelAvailableButton.interactable = false;
+            }
+
+            UpdateUI();
             SetStatusText("No more levels yet.");
         }
 
