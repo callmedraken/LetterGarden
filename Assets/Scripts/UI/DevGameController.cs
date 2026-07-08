@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using LetterGarden.Core;
@@ -22,32 +23,85 @@ namespace LetterGarden.UI
         [SerializeField] private Button nextLevelButton;
         [SerializeField] private Button nextLevelAvailableButton;
 
+        private readonly List<PuzzleLevel> levels = new List<PuzzleLevel>();
         private GameSession gameSession;
+        private int currentLevelIndex;
         private bool hasShownLevelCompletePanel;
 
         private void Start()
         {
-            PuzzleLevel level = new PuzzleLevel(
-                "dev-cat",
-                new[] { 'C', 'A', 'T' },
-                new[] { "CAT", "ACT" },
-                new[] { "AT" },
-                1);
+            LoadLevels();
 
-            gameSession = new GameSession(level);
-
-            SetupLetterButtons(level);
             submitButton.onClick.AddListener(SubmitCurrentWord);
             clearButton.onClick.AddListener(ClearCurrentWord);
             backspaceButton.onClick.AddListener(BackspaceLetter);
             keepPlayingButton.onClick.AddListener(KeepPlaying);
-            nextLevelButton.onClick.AddListener(ShowNextLevelPlaceholder);
-            nextLevelAvailableButton.onClick.AddListener(ShowNextLevelPlaceholder);
+            nextLevelButton.onClick.AddListener(LoadNextLevel);
+            nextLevelAvailableButton.onClick.AddListener(LoadNextLevel);
+
+            levelCompletePanel.SetActive(false);
+            nextLevelAvailableButton.gameObject.SetActive(false);
+
+            if (levels.Count == 0)
+            {
+                statusText.text = "No levels found.";
+                return;
+            }
+
+            LoadLevel(0);
+        }
+
+        public void LoadLevel(int index)
+        {
+            if (index < 0 || index >= levels.Count)
+            {
+                return;
+            }
+
+            currentLevelIndex = index;
+            gameSession = new GameSession(levels[currentLevelIndex]);
+            hasShownLevelCompletePanel = false;
 
             levelCompletePanel.SetActive(false);
             nextLevelAvailableButton.gameObject.SetActive(false);
             statusText.text = string.Empty;
+            currentWordText.text = string.Empty;
+            foundWordsText.text = string.Empty;
+
+            SetupLetterButtons(gameSession.CurrentLevel);
             UpdateUI();
+        }
+
+        private void LoadLevels()
+        {
+            levels.Clear();
+
+            TextAsset levelsJson = Resources.Load<TextAsset>("Levels/dev_levels");
+            if (levelsJson == null)
+            {
+                return;
+            }
+
+            LevelCollection levelCollection = JsonUtility.FromJson<LevelCollection>(levelsJson.text);
+            if (levelCollection == null || levelCollection.levels == null)
+            {
+                return;
+            }
+
+            foreach (LevelData levelData in levelCollection.levels)
+            {
+                levels.Add(CreatePuzzleLevel(levelData));
+            }
+        }
+
+        private PuzzleLevel CreatePuzzleLevel(LevelData levelData)
+        {
+            return new PuzzleLevel(
+                levelData.levelId,
+                levelData.letters.ToCharArray(),
+                levelData.requiredWords ?? Array.Empty<string>(),
+                levelData.bonusWords ?? Array.Empty<string>(),
+                levelData.difficulty);
         }
 
         private void SetupLetterButtons(PuzzleLevel level)
@@ -56,12 +110,16 @@ namespace LetterGarden.UI
             {
                 int letterIndex = i;
                 Button button = letterButtons[i];
+                button.onClick.RemoveAllListeners();
 
                 if (letterIndex >= level.AvailableLetters.Count)
                 {
-                    button.interactable = false;
+                    button.gameObject.SetActive(false);
                     continue;
                 }
+
+                button.gameObject.SetActive(true);
+                button.interactable = true;
 
                 TMP_Text buttonText = button.GetComponentInChildren<TMP_Text>();
                 if (buttonText != null)
@@ -115,10 +173,18 @@ namespace LetterGarden.UI
             statusText.text = "Keep playing for bonus words.";
         }
 
-        private void ShowNextLevelPlaceholder()
+        private void LoadNextLevel()
         {
+            int nextLevelIndex = currentLevelIndex + 1;
+
+            if (nextLevelIndex < levels.Count)
+            {
+                LoadLevel(nextLevelIndex);
+                return;
+            }
+
             levelCompletePanel.SetActive(false);
-            statusText.text = "Next level not implemented yet.";
+            statusText.text = "No more levels yet.";
         }
 
         private void ShowLevelCompletePanel()
@@ -213,6 +279,22 @@ namespace LetterGarden.UI
             }
 
             return string.Join(" ", new string('_', word.Length).ToCharArray());
+        }
+
+        [Serializable]
+        private class LevelCollection
+        {
+            public LevelData[] levels;
+        }
+
+        [Serializable]
+        private class LevelData
+        {
+            public string levelId;
+            public string letters;
+            public string[] requiredWords;
+            public string[] bonusWords;
+            public int difficulty;
         }
     }
 }

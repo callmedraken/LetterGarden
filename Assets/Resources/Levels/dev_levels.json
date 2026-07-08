@@ -1,0 +1,42 @@
+{
+    "levels": [
+        {
+            "levelId": "level-1-cat",
+            "letters": "CAT",
+            "requiredWords": [
+                "CAT",
+                "ACT"
+            ],
+            "bonusWords": [
+                "AT"
+            ],
+            "difficulty": 1
+        },
+        {
+            "levelId": "level-2-dog",
+            "letters": "DOG",
+            "requiredWords": [
+                "DOG",
+                "GOD"
+            ],
+            "bonusWords": [
+                "DO",
+                "GO"
+            ],
+            "difficulty": 1
+        },
+        {
+            "levelId": "level-3-eat",
+            "letters": "EAT",
+            "requiredWords": [
+                "EAT",
+                "TEA",
+                "ATE"
+            ],
+            "bonusWords": [
+                "AT"
+            ],
+            "difficulty": 2
+        }
+    ]
+}
