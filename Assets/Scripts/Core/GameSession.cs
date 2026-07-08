@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace LetterGarden.Core
 {
@@ -8,8 +9,9 @@ namespace LetterGarden.Core
     /// </summary>
     public sealed class GameSession
     {
-        private readonly WordValidator wordValidator;
         private readonly LetterSelection letterSelection;
+        private readonly HashSet<string> foundRequiredWords;
+        private readonly HashSet<string> foundBonusWords;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GameSession"/> class.
@@ -19,8 +21,9 @@ namespace LetterGarden.Core
         public GameSession(PuzzleLevel level)
         {
             CurrentLevel = level ?? throw new ArgumentNullException(nameof(level));
-            wordValidator = new WordValidator(level.ValidWords);
             letterSelection = new LetterSelection(level.AvailableLetters);
+            foundRequiredWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foundBonusWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -39,14 +42,45 @@ namespace LetterGarden.Core
         public IReadOnlyList<int> SelectedLetterIndices => letterSelection.SelectedIndices;
 
         /// <summary>
-        /// Gets the words that have already been found.
+        /// Gets the required words that have already been found.
         /// </summary>
-        public IReadOnlyCollection<string> FoundWords => wordValidator.GetFoundWords();
+        public IReadOnlyCollection<string> FoundRequiredWords => foundRequiredWords.ToList().AsReadOnly();
 
         /// <summary>
-        /// Gets a value indicating whether every valid word in the level has been found.
+        /// Gets the bonus words that have already been found.
         /// </summary>
-        public bool IsComplete => FoundWords.Count == CurrentLevel.ValidWords.Count;
+        public IReadOnlyCollection<string> FoundBonusWords => foundBonusWords.ToList().AsReadOnly();
+
+        /// <summary>
+        /// Gets all words that have already been found.
+        /// </summary>
+        public IReadOnlyCollection<string> FoundWords =>
+            foundRequiredWords.Concat(foundBonusWords).ToList().AsReadOnly();
+
+        /// <summary>
+        /// Gets a value indicating whether every required word in the level has been found.
+        /// </summary>
+        public bool IsRequiredComplete => foundRequiredWords.Count == CurrentLevel.RequiredWords.Count;
+
+        /// <summary>
+        /// Gets a value indicating whether every bonus word in the level has been found.
+        /// </summary>
+        public bool AreAllBonusWordsFound => foundBonusWords.Count == CurrentLevel.BonusWords.Count;
+
+        /// <summary>
+        /// Gets a value indicating whether the player can advance to the next level.
+        /// </summary>
+        public bool CanAdvanceToNextLevel => IsRequiredComplete;
+
+        /// <summary>
+        /// Gets a value indicating whether every required and bonus word has been found.
+        /// </summary>
+        public bool IsFullyComplete => IsRequiredComplete && AreAllBonusWordsFound;
+
+        /// <summary>
+        /// Gets a value indicating whether every required word in the level has been found.
+        /// </summary>
+        public bool IsComplete => IsRequiredComplete;
 
         /// <summary>
         /// Attempts to select the letter at the specified index.
@@ -88,12 +122,37 @@ namespace LetterGarden.Core
         /// <summary>
         /// Submits the current word for validation.
         /// </summary>
-        /// <returns>True if the current word was valid and newly found; otherwise, false.</returns>
-        public bool SubmitCurrentWord()
+        /// <returns>The result of submitting the current word.</returns>
+        public WordSubmitResult SubmitCurrentWord()
         {
-            bool wasNewlyFound = wordValidator.TryFindWord(CurrentWord);
+            WordSubmitResult result = GetSubmitResult(CurrentWord);
             ClearCurrentWord();
-            return wasNewlyFound;
+            return result;
+        }
+
+        private WordSubmitResult GetSubmitResult(string word)
+        {
+            if (CurrentLevel.RequiredWords.Contains(word, StringComparer.OrdinalIgnoreCase))
+            {
+                if (!foundRequiredWords.Add(word))
+                {
+                    return WordSubmitResult.AlreadyFoundRequired;
+                }
+
+                return WordSubmitResult.RequiredWordFound;
+            }
+
+            if (CurrentLevel.BonusWords.Contains(word, StringComparer.OrdinalIgnoreCase))
+            {
+                if (!foundBonusWords.Add(word))
+                {
+                    return WordSubmitResult.AlreadyFoundBonus;
+                }
+
+                return WordSubmitResult.BonusWordFound;
+            }
+
+            return WordSubmitResult.Invalid;
         }
     }
 }

@@ -27,12 +27,13 @@ namespace LetterGarden.Core.Tests
         }
 
         [Test]
-        public void SubmitCurrentWord_FindsWordsAndTracksCompletion()
+        public void SubmitCurrentWord_ReturnsRequiredWordFound_ForNewRequiredWord()
         {
             PuzzleLevel level = new PuzzleLevel(
                 "level-1",
                 new[] { 'C', 'A', 'T' },
-                new[] { "CAT", "AT" },
+                new[] { "CAT" },
+                new[] { "AT" },
                 1);
             GameSession session = new GameSession(level);
 
@@ -40,21 +41,147 @@ namespace LetterGarden.Core.Tests
             session.TrySelectLetter(1);
             session.TrySelectLetter(2);
 
-            bool foundFirstWord = session.SubmitCurrentWord();
+            WordSubmitResult result = session.SubmitCurrentWord();
 
-            Assert.IsTrue(foundFirstWord);
+            Assert.AreEqual(WordSubmitResult.RequiredWordFound, result);
             Assert.AreEqual(string.Empty, session.CurrentWord);
-            CollectionAssert.Contains(session.FoundWords.ToArray(), "CAT");
-            Assert.IsFalse(session.IsComplete);
+            CollectionAssert.AreEqual(new[] { "CAT" }, session.FoundRequiredWords);
+        }
+
+        [Test]
+        public void SubmitCurrentWord_ReturnsBonusWordFound_ForNewBonusWord()
+        {
+            PuzzleLevel level = new PuzzleLevel(
+                "level-1",
+                new[] { 'C', 'A', 'T' },
+                new[] { "CAT" },
+                new[] { "AT" },
+                1);
+            GameSession session = new GameSession(level);
 
             session.TrySelectLetter(1);
             session.TrySelectLetter(2);
 
-            bool foundSecondWord = session.SubmitCurrentWord();
+            WordSubmitResult result = session.SubmitCurrentWord();
 
-            Assert.IsTrue(foundSecondWord);
-            CollectionAssert.AreEquivalent(new[] { "CAT", "AT" }, session.FoundWords);
+            Assert.AreEqual(WordSubmitResult.BonusWordFound, result);
+            CollectionAssert.AreEqual(new[] { "AT" }, session.FoundBonusWords);
+        }
+
+        [Test]
+        public void SubmitCurrentWord_ReturnsInvalid_ForInvalidWord()
+        {
+            PuzzleLevel level = new PuzzleLevel(
+                "level-1",
+                new[] { 'C', 'A', 'T' },
+                new[] { "CAT" },
+                new[] { "AT" },
+                1);
+            GameSession session = new GameSession(level);
+
+            session.TrySelectLetter(0);
+            session.TrySelectLetter(2);
+
+            WordSubmitResult result = session.SubmitCurrentWord();
+
+            Assert.AreEqual(WordSubmitResult.Invalid, result);
+            CollectionAssert.IsEmpty(session.FoundRequiredWords);
+            CollectionAssert.IsEmpty(session.FoundBonusWords);
+        }
+
+        [Test]
+        public void SubmitCurrentWord_ReturnsAlreadyFoundRequired_ForDuplicateRequiredWord()
+        {
+            PuzzleLevel level = new PuzzleLevel(
+                "level-1",
+                new[] { 'C', 'A', 'T' },
+                new[] { "CAT" },
+                new[] { "AT" },
+                1);
+            GameSession session = new GameSession(level);
+
+            session.TrySelectLetter(0);
+            session.TrySelectLetter(1);
+            session.TrySelectLetter(2);
+            session.SubmitCurrentWord();
+
+            session.TrySelectLetter(0);
+            session.TrySelectLetter(1);
+            session.TrySelectLetter(2);
+            WordSubmitResult result = session.SubmitCurrentWord();
+
+            Assert.AreEqual(WordSubmitResult.AlreadyFoundRequired, result);
+        }
+
+        [Test]
+        public void SubmitCurrentWord_ReturnsAlreadyFoundBonus_ForDuplicateBonusWord()
+        {
+            PuzzleLevel level = new PuzzleLevel(
+                "level-1",
+                new[] { 'C', 'A', 'T' },
+                new[] { "CAT" },
+                new[] { "AT" },
+                1);
+            GameSession session = new GameSession(level);
+
+            session.TrySelectLetter(1);
+            session.TrySelectLetter(2);
+            session.SubmitCurrentWord();
+
+            session.TrySelectLetter(1);
+            session.TrySelectLetter(2);
+            WordSubmitResult result = session.SubmitCurrentWord();
+
+            Assert.AreEqual(WordSubmitResult.AlreadyFoundBonus, result);
+        }
+
+        [Test]
+        public void IsRequiredComplete_IsTrue_WhenAllRequiredWordsAreFound()
+        {
+            PuzzleLevel level = new PuzzleLevel(
+                "level-1",
+                new[] { 'C', 'A', 'T' },
+                new[] { "CAT" },
+                new[] { "AT" },
+                1);
+            GameSession session = new GameSession(level);
+
+            session.TrySelectLetter(0);
+            session.TrySelectLetter(1);
+            session.TrySelectLetter(2);
+            session.SubmitCurrentWord();
+
+            Assert.IsTrue(session.IsRequiredComplete);
+            Assert.IsTrue(session.CanAdvanceToNextLevel);
             Assert.IsTrue(session.IsComplete);
+            Assert.IsFalse(session.AreAllBonusWordsFound);
+            Assert.IsFalse(session.IsFullyComplete);
+        }
+
+        [Test]
+        public void IsFullyComplete_IsTrue_WhenRequiredAndBonusWordsAreFound()
+        {
+            PuzzleLevel level = new PuzzleLevel(
+                "level-1",
+                new[] { 'C', 'A', 'T' },
+                new[] { "CAT" },
+                new[] { "AT" },
+                1);
+            GameSession session = new GameSession(level);
+
+            session.TrySelectLetter(0);
+            session.TrySelectLetter(1);
+            session.TrySelectLetter(2);
+            session.SubmitCurrentWord();
+
+            session.TrySelectLetter(1);
+            session.TrySelectLetter(2);
+            session.SubmitCurrentWord();
+
+            Assert.IsTrue(session.IsRequiredComplete);
+            Assert.IsTrue(session.AreAllBonusWordsFound);
+            Assert.IsTrue(session.IsFullyComplete);
+            CollectionAssert.AreEquivalent(new[] { "CAT", "AT" }, session.FoundWords);
         }
     }
 }

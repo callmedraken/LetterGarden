@@ -15,7 +15,7 @@ namespace LetterGarden.Core
         /// </summary>
         /// <param name="levelId">The unique identifier for the level.</param>
         /// <param name="availableLetters">The letters available to form words in the level.</param>
-        /// <param name="validWords">The valid words that can be found in the level.</param>
+        /// <param name="validWords">The required words that can be found in the level.</param>
         /// <param name="difficulty">The numeric difficulty rating for the level.</param>
         /// <exception cref="ArgumentException">
         /// Thrown when <paramref name="levelId"/> is empty, <paramref name="availableLetters"/> is empty,
@@ -30,6 +30,34 @@ namespace LetterGarden.Core
             string levelId,
             IEnumerable<char> availableLetters,
             IEnumerable<string> validWords,
+            int difficulty)
+            : this(levelId, availableLetters, validWords, Array.Empty<string>(), difficulty)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PuzzleLevel"/> class.
+        /// </summary>
+        /// <param name="levelId">The unique identifier for the level.</param>
+        /// <param name="availableLetters">The letters available to form words in the level.</param>
+        /// <param name="requiredWords">The words required to complete the level.</param>
+        /// <param name="bonusWords">The optional accepted words that are not required to complete the level.</param>
+        /// <param name="difficulty">The numeric difficulty rating for the level.</param>
+        /// <exception cref="ArgumentException">
+        /// Thrown when <paramref name="levelId"/> is empty, <paramref name="availableLetters"/> is empty,
+        /// <paramref name="availableLetters"/> contains whitespace, <paramref name="requiredWords"/> is empty,
+        /// <paramref name="requiredWords"/> contains an empty entry, <paramref name="bonusWords"/> contains an empty
+        /// entry, or <paramref name="difficulty"/> is negative.
+        /// </exception>
+        /// <exception cref="ArgumentNullException">
+        /// Thrown when <paramref name="levelId"/>, <paramref name="availableLetters"/>,
+        /// <paramref name="requiredWords"/>, or <paramref name="bonusWords"/> is null.
+        /// </exception>
+        public PuzzleLevel(
+            string levelId,
+            IEnumerable<char> availableLetters,
+            IEnumerable<string> requiredWords,
+            IEnumerable<string> bonusWords,
             int difficulty)
         {
             if (levelId == null)
@@ -47,9 +75,14 @@ namespace LetterGarden.Core
                 throw new ArgumentNullException(nameof(availableLetters));
             }
 
-            if (validWords == null)
+            if (requiredWords == null)
             {
-                throw new ArgumentNullException(nameof(validWords));
+                throw new ArgumentNullException(nameof(requiredWords));
+            }
+
+            if (bonusWords == null)
+            {
+                throw new ArgumentNullException(nameof(bonusWords));
             }
 
             if (difficulty < 0)
@@ -74,27 +107,50 @@ namespace LetterGarden.Core
                 .ToList()
                 .AsReadOnly();
 
-            List<string> normalizedWords = validWords
-                .Select(word => word?.Trim().ToUpperInvariant())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+            List<string> normalizedRequiredWords = NormalizeWords(requiredWords, nameof(requiredWords));
+
+            if (normalizedRequiredWords.Count == 0)
+            {
+                throw new ArgumentException("Required words cannot be empty.", nameof(requiredWords));
+            }
+
+            List<string> normalizedBonusWords = NormalizeWords(bonusWords, nameof(bonusWords));
+            List<string> requiredOnlyBonusWords = normalizedBonusWords
+                .Where(word => !normalizedRequiredWords.Contains(word, StringComparer.OrdinalIgnoreCase))
                 .ToList();
-
-            if (normalizedWords.Count == 0)
-            {
-                throw new ArgumentException("Valid words cannot be empty.", nameof(validWords));
-            }
-
-            if (normalizedWords.Any(string.IsNullOrWhiteSpace))
-            {
-                throw new ArgumentException("Valid words cannot contain empty entries.", nameof(validWords));
-            }
-
-            ReadOnlyCollection<string> words = normalizedWords.AsReadOnly();
+            List<string> allAcceptedWords = normalizedRequiredWords
+                .Concat(requiredOnlyBonusWords)
+                .ToList();
 
             LevelId = levelId.Trim();
             AvailableLetters = letters;
-            ValidWords = words;
+            RequiredWords = normalizedRequiredWords.AsReadOnly();
+            BonusWords = requiredOnlyBonusWords.AsReadOnly();
+            AllAcceptedWords = allAcceptedWords.AsReadOnly();
             Difficulty = difficulty;
+        }
+
+        private static List<string> NormalizeWords(IEnumerable<string> words, string parameterName)
+        {
+            List<string> normalizedWords = new List<string>();
+            HashSet<string> seenWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string word in words)
+            {
+                if (string.IsNullOrWhiteSpace(word))
+                {
+                    throw new ArgumentException("Words cannot contain empty entries.", parameterName);
+                }
+
+                string normalizedWord = word.Trim().ToUpperInvariant();
+
+                if (seenWords.Add(normalizedWord))
+                {
+                    normalizedWords.Add(normalizedWord);
+                }
+            }
+
+            return normalizedWords;
         }
 
         /// <summary>
@@ -108,9 +164,24 @@ namespace LetterGarden.Core
         public IReadOnlyList<char> AvailableLetters { get; }
 
         /// <summary>
-        /// Gets the valid words that can be found in the level.
+        /// Gets the words required to complete the level.
         /// </summary>
-        public IReadOnlyCollection<string> ValidWords { get; }
+        public IReadOnlyCollection<string> RequiredWords { get; }
+
+        /// <summary>
+        /// Gets the optional accepted words that are not required to complete the level.
+        /// </summary>
+        public IReadOnlyCollection<string> BonusWords { get; }
+
+        /// <summary>
+        /// Gets all words accepted by the level.
+        /// </summary>
+        public IReadOnlyCollection<string> AllAcceptedWords { get; }
+
+        /// <summary>
+        /// Gets all words accepted by the level.
+        /// </summary>
+        public IReadOnlyCollection<string> ValidWords => AllAcceptedWords;
 
         /// <summary>
         /// Gets the numeric difficulty rating for the level.

@@ -13,10 +13,14 @@ namespace LetterGarden.Core.Tests
             PuzzleLevel level = new PuzzleLevel(
                 " level-1 ",
                 new[] { 'c', 'a', 't' },
-                new[] { " cat ", "CAT", "act" },
+                new[] { " cat ", "CAT" },
+                new[] { "act", " cat " },
                 1);
 
             CollectionAssert.AreEqual(new[] { 'C', 'A', 'T' }, level.AvailableLetters);
+            CollectionAssert.AreEqual(new[] { "CAT" }, level.RequiredWords.ToArray());
+            CollectionAssert.AreEqual(new[] { "ACT" }, level.BonusWords.ToArray());
+            CollectionAssert.AreEqual(new[] { "CAT", "ACT" }, level.AllAcceptedWords.ToArray());
             CollectionAssert.AreEqual(new[] { "CAT", "ACT" }, level.ValidWords.ToArray());
             Assert.AreEqual("level-1", level.LevelId);
         }
@@ -54,6 +58,13 @@ namespace LetterGarden.Core.Tests
         {
             Assert.Throws<ArgumentException>(() =>
                 new PuzzleLevel("level-1", new[] { 'C' }, new[] { "CAT", " " }, 1));
+        }
+
+        [Test]
+        public void Constructor_Throws_WhenBonusWordsContainEmptyEntry()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                new PuzzleLevel("level-1", new[] { 'C' }, new[] { "CAT" }, new[] { " " }, 1));
         }
 
         [Test]
