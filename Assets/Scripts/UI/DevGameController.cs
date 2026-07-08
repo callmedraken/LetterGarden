@@ -13,6 +13,7 @@ namespace LetterGarden.UI
         [SerializeField] private TMP_Text currentWordText;
         [SerializeField] private TMP_Text foundWordsText;
         [SerializeField] private TMP_Text statusText;
+        [SerializeField] private TMP_Text levelText;
         [SerializeField] private RectTransform letterButtonContainer;
         [SerializeField] private Button letterButtonPrefab;
         [SerializeField] private float letterButtonRadius = 170f;
@@ -71,6 +72,11 @@ namespace LetterGarden.UI
             statusText.text = string.Empty;
             currentWordText.text = string.Empty;
             foundWordsText.text = string.Empty;
+
+            if (levelText != null)
+            {
+                levelText.text = "Level " + (currentLevelIndex + 1) + " / " + levels.Count;
+            }
 
             SetupLetterButtons(gameSession.CurrentLevel);
             UpdateUI();
