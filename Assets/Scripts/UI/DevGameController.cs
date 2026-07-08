@@ -14,7 +14,7 @@ namespace LetterGarden.UI
         [SerializeField] private TMP_Text statusText;
         [SerializeField] private TMP_Text levelText;
         [SerializeField] private RequiredWordBoardView requiredWordBoardView;
-        [SerializeField] private LetterDragPathView letterDragPathView;
+        [SerializeField] private DragPathView dragPathView;
         [SerializeField] private RectTransform letterButtonContainer;
         [SerializeField] private Button letterButtonPrefab;
         [SerializeField] private float letterButtonRadius = 170f;
@@ -32,10 +32,15 @@ namespace LetterGarden.UI
         private bool hasShownLevelCompletePanel;
         private bool isLevelCompletePanelOpen;
         private bool isDraggingLetters;
-        private int lastDragLetterIndex = -1;
+
+        private void Awake()
+        {
+            ResolveDragPathView();
+        }
 
         private void Start()
         {
+            ResolveDragPathView();
             LoadLevels();
 
             if (keepPlayingButton != null)
@@ -77,7 +82,6 @@ namespace LetterGarden.UI
             hasShownLevelCompletePanel = false;
             isLevelCompletePanelOpen = false;
             isDraggingLetters = false;
-            lastDragLetterIndex = -1;
 
             HideLevelCompletePanel();
             HideNextLevelAvailableButton();
@@ -196,19 +200,16 @@ namespace LetterGarden.UI
         {
             if (isLevelCompletePanelOpen || gameSession == null)
             {
+                ClearLetterDragPath();
                 return;
             }
 
             isDraggingLetters = true;
-            lastDragLetterIndex = -1;
             gameSession.ClearCurrentWord();
             ClearLetterDragPath();
 
-            if (gameSession.TrySelectLetter(index))
-            {
-                lastDragLetterIndex = index;
-            }
-
+            gameSession.TrySelectLetter(index);
+            UpdateLetterDragPath();
             UpdateUI();
         }
 
@@ -216,13 +217,17 @@ namespace LetterGarden.UI
         {
             if (isLevelCompletePanelOpen || !isDraggingLetters || gameSession == null)
             {
+                if (isLevelCompletePanelOpen)
+                {
+                    ClearLetterDragPath();
+                }
+
                 return;
             }
 
             if (gameSession.TrySelectLetter(index))
             {
-                AddLetterDragConnection(lastDragLetterIndex, index);
-                lastDragLetterIndex = index;
+                UpdateLetterDragPath();
             }
 
             UpdateUI();
@@ -232,11 +237,15 @@ namespace LetterGarden.UI
         {
             if (isLevelCompletePanelOpen || !isDraggingLetters || gameSession == null)
             {
+                if (isLevelCompletePanelOpen)
+                {
+                    ClearLetterDragPath();
+                }
+
                 return;
             }
 
             isDraggingLetters = false;
-            lastDragLetterIndex = -1;
             SubmitCurrentWord();
             ResetLetterButtonVisuals();
             ClearLetterDragPath();
@@ -265,6 +274,7 @@ namespace LetterGarden.UI
             HideLevelCompletePanel();
             ShowLetterButtonContainer();
             isLevelCompletePanelOpen = false;
+            ClearLetterDragPath();
             ShowNextLevelAvailableButton();
             SetStatusText("Keep playing for bonus words.");
         }
@@ -275,7 +285,7 @@ namespace LetterGarden.UI
             HideLevelCompletePanel();
             isLevelCompletePanelOpen = false;
             isDraggingLetters = false;
-            lastDragLetterIndex = -1;
+            ClearLetterDragPath();
 
             if (nextLevelIndex < levels.Count)
             {
@@ -304,7 +314,6 @@ namespace LetterGarden.UI
             hasShownLevelCompletePanel = true;
             isLevelCompletePanelOpen = true;
             isDraggingLetters = false;
-            lastDragLetterIndex = -1;
             ClearLetterDragPath();
 
             if (levelCompleteSummaryText != null)
@@ -360,36 +369,97 @@ namespace LetterGarden.UI
             }
         }
 
-        private void AddLetterDragConnection(int fromIndex, int toIndex)
+        private void UpdateLetterDragPath()
         {
-            if (letterDragPathView == null
-                || fromIndex < 0
-                || toIndex < 0
-                || fromIndex >= spawnedLetterButtons.Count
-                || toIndex >= spawnedLetterButtons.Count)
+            ResolveDragPathView();
+
+            if (dragPathView == null || gameSession == null || isLevelCompletePanelOpen)
+            {
+                if (isLevelCompletePanelOpen)
+                {
+                    ClearLetterDragPath();
+                }
+
+                return;
+            }
+
+            RectTransform dragPathTransform = dragPathView.GetComponent<RectTransform>();
+            if (dragPathTransform == null)
             {
                 return;
             }
 
-            Button fromButton = spawnedLetterButtons[fromIndex];
-            Button toButton = spawnedLetterButtons[toIndex];
+            Camera dragPathCamera = GetCanvasCamera(dragPathView.transform);
+            List<Vector2> pathPoints = new List<Vector2>();
+            IReadOnlyList<int> selectedIndices = gameSession.SelectedLetterIndices;
 
-            if (fromButton == null || toButton == null)
+            for (int i = 0; i < selectedIndices.Count; i++)
             {
-                return;
+                int selectedIndex = selectedIndices[i];
+                if (selectedIndex < 0 || selectedIndex >= spawnedLetterButtons.Count)
+                {
+                    continue;
+                }
+
+                Button selectedButton = spawnedLetterButtons[selectedIndex];
+                if (selectedButton == null)
+                {
+                    continue;
+                }
+
+                RectTransform selectedTransform = selectedButton.GetComponent<RectTransform>();
+                if (selectedTransform != null)
+                {
+                    Vector3 worldCenter = selectedTransform.TransformPoint(selectedTransform.rect.center);
+                    Camera selectedButtonCamera = GetCanvasCamera(selectedTransform);
+                    Vector2 screenPoint = RectTransformUtility.WorldToScreenPoint(selectedButtonCamera, worldCenter);
+
+                    if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                        dragPathTransform,
+                        screenPoint,
+                        dragPathCamera,
+                        out Vector2 localPoint))
+                    {
+                        pathPoints.Add(localPoint);
+                    }
+                }
             }
 
-            RectTransform fromTransform = fromButton.GetComponent<RectTransform>();
-            RectTransform toTransform = toButton.GetComponent<RectTransform>();
-            letterDragPathView.AddConnection(fromTransform, toTransform);
+            dragPathView.SetPath(pathPoints);
         }
 
         private void ClearLetterDragPath()
         {
-            if (letterDragPathView != null)
+            ResolveDragPathView();
+
+            if (dragPathView != null)
             {
-                letterDragPathView.Clear();
+                dragPathView.Clear();
             }
+        }
+
+        private void ResolveDragPathView()
+        {
+            if (dragPathView == null)
+            {
+                dragPathView = FindFirstObjectByType<DragPathView>();
+            }
+        }
+
+        private Camera GetCanvasCamera(Transform uiTransform)
+        {
+            if (uiTransform == null)
+            {
+                return null;
+            }
+
+            Canvas parentCanvas = uiTransform.GetComponentInParent<Canvas>();
+            if (parentCanvas == null || parentCanvas.renderMode == RenderMode.ScreenSpaceOverlay)
+            {
+                return null;
+            }
+
+            return parentCanvas.worldCamera != null ? parentCanvas.worldCamera : Camera.main;
         }
 
         private void RenderRequiredWordBoard()
