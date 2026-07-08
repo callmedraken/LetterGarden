@@ -16,8 +16,14 @@ namespace LetterGarden.UI
         [SerializeField] private Button submitButton;
         [SerializeField] private Button clearButton;
         [SerializeField] private Button backspaceButton;
+        [SerializeField] private GameObject levelCompletePanel;
+        [SerializeField] private TMP_Text levelCompleteSummaryText;
+        [SerializeField] private Button keepPlayingButton;
+        [SerializeField] private Button nextLevelButton;
+        [SerializeField] private Button nextLevelAvailableButton;
 
         private GameSession gameSession;
+        private bool hasShownLevelCompletePanel;
 
         private void Start()
         {
@@ -34,7 +40,12 @@ namespace LetterGarden.UI
             submitButton.onClick.AddListener(SubmitCurrentWord);
             clearButton.onClick.AddListener(ClearCurrentWord);
             backspaceButton.onClick.AddListener(BackspaceLetter);
+            keepPlayingButton.onClick.AddListener(KeepPlaying);
+            nextLevelButton.onClick.AddListener(ShowNextLevelPlaceholder);
+            nextLevelAvailableButton.onClick.AddListener(ShowNextLevelPlaceholder);
 
+            levelCompletePanel.SetActive(false);
+            nextLevelAvailableButton.gameObject.SetActive(false);
             statusText.text = string.Empty;
             UpdateUI();
         }
@@ -80,6 +91,7 @@ namespace LetterGarden.UI
                 && result == WordSubmitResult.RequiredWordFound)
             {
                 statusText.text = "Level Complete! Keep playing for bonus words.";
+                ShowLevelCompletePanel();
             }
 
             UpdateUI();
@@ -95,6 +107,31 @@ namespace LetterGarden.UI
         {
             gameSession.BackspaceLetter();
             UpdateUI();
+        }
+
+        private void KeepPlaying()
+        {
+            levelCompletePanel.SetActive(false);
+            statusText.text = "Keep playing for bonus words.";
+        }
+
+        private void ShowNextLevelPlaceholder()
+        {
+            levelCompletePanel.SetActive(false);
+            statusText.text = "Next level not implemented yet.";
+        }
+
+        private void ShowLevelCompletePanel()
+        {
+            if (hasShownLevelCompletePanel)
+            {
+                return;
+            }
+
+            hasShownLevelCompletePanel = true;
+            levelCompleteSummaryText.text = GetLevelCompleteSummaryText();
+            levelCompletePanel.SetActive(true);
+            nextLevelAvailableButton.gameObject.SetActive(true);
         }
 
         private void UpdateUI()
@@ -124,6 +161,20 @@ namespace LetterGarden.UI
                 default:
                     return "Not a word";
             }
+        }
+
+        private string GetLevelCompleteSummaryText()
+        {
+            return "Level Complete!\n\n"
+                + "Required Words: "
+                + gameSession.FoundRequiredWords.Count
+                + " / "
+                + gameSession.CurrentLevel.RequiredWords.Count
+                + "\n"
+                + "Bonus Words: "
+                + gameSession.FoundBonusWords.Count
+                + " / "
+                + gameSession.CurrentLevel.BonusWords.Count;
         }
 
         private string GetFoundWordsText()
