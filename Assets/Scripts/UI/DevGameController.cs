@@ -13,7 +13,10 @@ namespace LetterGarden.UI
         [SerializeField] private TMP_Text currentWordText;
         [SerializeField] private TMP_Text foundWordsText;
         [SerializeField] private TMP_Text statusText;
-        [SerializeField] private Button[] letterButtons;
+        [SerializeField] private RectTransform letterButtonContainer;
+        [SerializeField] private Button letterButtonPrefab;
+        [SerializeField] private float letterButtonRadius = 170f;
+        [SerializeField] private float letterButtonFontSize = 72f;
         [SerializeField] private Button submitButton;
         [SerializeField] private Button clearButton;
         [SerializeField] private Button backspaceButton;
@@ -24,6 +27,7 @@ namespace LetterGarden.UI
         [SerializeField] private Button nextLevelAvailableButton;
 
         private readonly List<PuzzleLevel> levels = new List<PuzzleLevel>();
+        private readonly List<Button> spawnedLetterButtons = new List<Button>();
         private GameSession gameSession;
         private int currentLevelIndex;
         private bool hasShownLevelCompletePanel;
@@ -106,29 +110,53 @@ namespace LetterGarden.UI
 
         private void SetupLetterButtons(PuzzleLevel level)
         {
-            for (int i = 0; i < letterButtons.Length; i++)
+            ClearLetterButtons();
+
+            int letterCount = level.AvailableLetters.Count;
+
+            for (int i = 0; i < letterCount; i++)
             {
                 int letterIndex = i;
-                Button button = letterButtons[i];
-                button.onClick.RemoveAllListeners();
-
-                if (letterIndex >= level.AvailableLetters.Count)
-                {
-                    button.gameObject.SetActive(false);
-                    continue;
-                }
-
-                button.gameObject.SetActive(true);
+                Button button = Instantiate(letterButtonPrefab, letterButtonContainer);
                 button.interactable = true;
+                SetLetterButtonPosition(button, letterIndex, letterCount);
 
                 TMP_Text buttonText = button.GetComponentInChildren<TMP_Text>();
                 if (buttonText != null)
                 {
                     buttonText.text = level.AvailableLetters[letterIndex].ToString();
+                    buttonText.fontSize = letterButtonFontSize;
+                    buttonText.alignment = TextAlignmentOptions.Center;
                 }
 
                 button.onClick.AddListener(() => SelectLetter(letterIndex));
+                spawnedLetterButtons.Add(button);
             }
+        }
+
+        private void ClearLetterButtons()
+        {
+            foreach (Button button in spawnedLetterButtons)
+            {
+                if (button != null)
+                {
+                    Destroy(button.gameObject);
+                }
+            }
+
+            spawnedLetterButtons.Clear();
+        }
+
+        private void SetLetterButtonPosition(Button button, int index, int totalButtons)
+        {
+            RectTransform buttonTransform = button.GetComponent<RectTransform>();
+            float angle = 360f / totalButtons * index;
+            float radians = angle * Mathf.Deg2Rad;
+            Vector2 position = new Vector2(
+                Mathf.Sin(radians) * letterButtonRadius,
+                Mathf.Cos(radians) * letterButtonRadius);
+
+            buttonTransform.anchoredPosition = position;
         }
 
         private void SelectLetter(int index)
@@ -205,10 +233,9 @@ namespace LetterGarden.UI
             currentWordText.text = string.IsNullOrEmpty(gameSession.CurrentWord) ? "_" : gameSession.CurrentWord;
             foundWordsText.text = GetFoundWordsText();
 
-            for (int i = 0; i < letterButtons.Length; i++)
+            for (int i = 0; i < spawnedLetterButtons.Count; i++)
             {
-                bool hasMatchingLetter = i < gameSession.CurrentLevel.AvailableLetters.Count;
-                letterButtons[i].interactable = hasMatchingLetter && !gameSession.IsLetterSelected(i);
+                spawnedLetterButtons[i].interactable = !gameSession.IsLetterSelected(i);
             }
         }
 
