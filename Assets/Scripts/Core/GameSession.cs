@@ -9,6 +9,7 @@ namespace LetterGarden.Core
     public sealed class GameSession
     {
         private readonly WordValidator wordValidator;
+        private readonly LetterSelection letterSelection;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GameSession"/> class.
@@ -19,7 +20,7 @@ namespace LetterGarden.Core
         {
             CurrentLevel = level ?? throw new ArgumentNullException(nameof(level));
             wordValidator = new WordValidator(level.ValidWords);
-            CurrentWord = string.Empty;
+            letterSelection = new LetterSelection(level.AvailableLetters);
         }
 
         /// <summary>
@@ -30,7 +31,12 @@ namespace LetterGarden.Core
         /// <summary>
         /// Gets the word currently being assembled by the player.
         /// </summary>
-        public string CurrentWord { get; private set; }
+        public string CurrentWord => letterSelection.CurrentWord;
+
+        /// <summary>
+        /// Gets the selected letter indices in selection order.
+        /// </summary>
+        public IReadOnlyList<int> SelectedLetterIndices => letterSelection.SelectedIndices;
 
         /// <summary>
         /// Gets the words that have already been found.
@@ -43,12 +49,32 @@ namespace LetterGarden.Core
         public bool IsComplete => FoundWords.Count == CurrentLevel.ValidWords.Count;
 
         /// <summary>
-        /// Adds a letter to the current word.
+        /// Attempts to select the letter at the specified index.
         /// </summary>
-        /// <param name="letter">The letter to add.</param>
-        public void AddLetter(char letter)
+        /// <param name="index">The index of the letter to select.</param>
+        /// <returns>True if the index was selected; otherwise, false.</returns>
+        public bool TrySelectLetter(int index)
         {
-            CurrentWord += char.ToUpperInvariant(letter);
+            return letterSelection.TrySelectLetter(index);
+        }
+
+        /// <summary>
+        /// Determines whether the specified letter index has already been selected.
+        /// </summary>
+        /// <param name="index">The letter index to check.</param>
+        /// <returns>True if the index has been selected; otherwise, false.</returns>
+        public bool IsLetterSelected(int index)
+        {
+            return letterSelection.IsSelected(index);
+        }
+
+        /// <summary>
+        /// Removes the most recently selected letter index.
+        /// </summary>
+        /// <returns>True if a selected index was removed; otherwise, false.</returns>
+        public bool BackspaceLetter()
+        {
+            return letterSelection.Backspace();
         }
 
         /// <summary>
@@ -56,7 +82,7 @@ namespace LetterGarden.Core
         /// </summary>
         public void ClearCurrentWord()
         {
-            CurrentWord = string.Empty;
+            letterSelection.Clear();
         }
 
         /// <summary>
