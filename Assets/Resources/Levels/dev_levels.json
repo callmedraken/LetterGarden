@@ -37,6 +37,25 @@
                 "AT"
             ],
             "difficulty": 2
+        },
+        {
+            "levelId": "level-4-rate",
+            "letters": "RATE",
+            "requiredWords": [
+                "RATE",
+                "TEAR",
+                "EAT",
+                "TEA",
+                "ART"
+            ],
+            "bonusWords": [
+                "ARE",
+                "EAR",
+                "TAR",
+                "RAT",
+                "ATE"
+            ],
+            "difficulty": 2
         }
     ]
 }
