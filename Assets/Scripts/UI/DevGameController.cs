@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using LetterGarden.Core;
 using TMPro;
 using UnityEngine;
@@ -13,10 +12,12 @@ namespace LetterGarden.UI
         [SerializeField] private TMP_Text currentWordText;
         [SerializeField] private TMP_Text foundWordsText;
         [SerializeField] private TMP_Text statusText;
-        [SerializeField] private Button[] letterButtons;
-        [SerializeField] private Button submitButton;
-        [SerializeField] private Button clearButton;
-        [SerializeField] private Button backspaceButton;
+        [SerializeField] private TMP_Text levelText;
+        [SerializeField] private RequiredWordBoardView requiredWordBoardView;
+        [SerializeField] private RectTransform letterButtonContainer;
+        [SerializeField] private Button letterButtonPrefab;
+        [SerializeField] private float letterButtonRadius = 170f;
+        [SerializeField] private float letterButtonFontSize = 72f;
         [SerializeField] private GameObject levelCompletePanel;
         [SerializeField] private TMP_Text levelCompleteSummaryText;
         [SerializeField] private Button keepPlayingButton;
@@ -24,27 +25,38 @@ namespace LetterGarden.UI
         [SerializeField] private Button nextLevelAvailableButton;
 
         private readonly List<PuzzleLevel> levels = new List<PuzzleLevel>();
+        private readonly List<Button> spawnedLetterButtons = new List<Button>();
         private GameSession gameSession;
         private int currentLevelIndex;
         private bool hasShownLevelCompletePanel;
+        private bool isLevelCompletePanelOpen;
+        private bool isDraggingLetters;
 
         private void Start()
         {
             LoadLevels();
 
-            submitButton.onClick.AddListener(SubmitCurrentWord);
-            clearButton.onClick.AddListener(ClearCurrentWord);
-            backspaceButton.onClick.AddListener(BackspaceLetter);
-            keepPlayingButton.onClick.AddListener(KeepPlaying);
-            nextLevelButton.onClick.AddListener(LoadNextLevel);
-            nextLevelAvailableButton.onClick.AddListener(LoadNextLevel);
+            if (keepPlayingButton != null)
+            {
+                keepPlayingButton.onClick.AddListener(KeepPlaying);
+            }
 
-            levelCompletePanel.SetActive(false);
-            nextLevelAvailableButton.gameObject.SetActive(false);
+            if (nextLevelButton != null)
+            {
+                nextLevelButton.onClick.AddListener(LoadNextLevel);
+            }
+
+            if (nextLevelAvailableButton != null)
+            {
+                nextLevelAvailableButton.onClick.AddListener(LoadNextLevel);
+            }
+
+            HideLevelCompletePanel();
+            HideNextLevelAvailableButton();
 
             if (levels.Count == 0)
             {
-                statusText.text = "No levels found.";
+                SetStatusText("No levels found.");
                 return;
             }
 
@@ -61,12 +73,16 @@ namespace LetterGarden.UI
             currentLevelIndex = index;
             gameSession = new GameSession(levels[currentLevelIndex]);
             hasShownLevelCompletePanel = false;
+            isLevelCompletePanelOpen = false;
+            isDraggingLetters = false;
 
-            levelCompletePanel.SetActive(false);
-            nextLevelAvailableButton.gameObject.SetActive(false);
-            statusText.text = string.Empty;
-            currentWordText.text = string.Empty;
-            foundWordsText.text = string.Empty;
+            HideLevelCompletePanel();
+            HideNextLevelAvailableButton();
+            ShowLetterButtonContainer();
+            SetStatusText(string.Empty);
+            SetCurrentWordText(string.Empty);
+            SetFoundWordsText(string.Empty);
+            SetLevelText("Level " + (currentLevelIndex + 1) + " / " + levels.Count);
 
             SetupLetterButtons(gameSession.CurrentLevel);
             UpdateUI();
@@ -106,35 +122,106 @@ namespace LetterGarden.UI
 
         private void SetupLetterButtons(PuzzleLevel level)
         {
-            for (int i = 0; i < letterButtons.Length; i++)
+            ClearLetterButtons();
+
+            if (letterButtonContainer == null || letterButtonPrefab == null)
+            {
+                return;
+            }
+
+            int letterCount = level.AvailableLetters.Count;
+
+            for (int i = 0; i < letterCount; i++)
             {
                 int letterIndex = i;
-                Button button = letterButtons[i];
-                button.onClick.RemoveAllListeners();
-
-                if (letterIndex >= level.AvailableLetters.Count)
-                {
-                    button.gameObject.SetActive(false);
-                    continue;
-                }
-
-                button.gameObject.SetActive(true);
+                Button button = Instantiate(letterButtonPrefab, letterButtonContainer);
                 button.interactable = true;
+                button.onClick.RemoveAllListeners();
+                SetLetterButtonPosition(button, letterIndex, letterCount);
 
                 TMP_Text buttonText = button.GetComponentInChildren<TMP_Text>();
                 if (buttonText != null)
                 {
                     buttonText.text = level.AvailableLetters[letterIndex].ToString();
+                    buttonText.fontSize = letterButtonFontSize;
+                    buttonText.alignment = TextAlignmentOptions.Center;
                 }
 
-                button.onClick.AddListener(() => SelectLetter(letterIndex));
+                LetterButtonInput input = button.GetComponent<LetterButtonInput>();
+                if (input == null)
+                {
+                    input = button.gameObject.AddComponent<LetterButtonInput>();
+                }
+
+                input.Initialize(letterIndex, this);
+                spawnedLetterButtons.Add(button);
             }
         }
 
-        private void SelectLetter(int index)
+        private void ClearLetterButtons()
         {
+            foreach (Button button in spawnedLetterButtons)
+            {
+                if (button != null)
+                {
+                    Destroy(button.gameObject);
+                }
+            }
+
+            spawnedLetterButtons.Clear();
+        }
+
+        private void SetLetterButtonPosition(Button button, int index, int totalButtons)
+        {
+            RectTransform buttonTransform = button.GetComponent<RectTransform>();
+            if (buttonTransform == null)
+            {
+                return;
+            }
+
+            float angle = 360f / totalButtons * index;
+            float radians = angle * Mathf.Deg2Rad;
+            Vector2 position = new Vector2(
+                Mathf.Sin(radians) * letterButtonRadius,
+                Mathf.Cos(radians) * letterButtonRadius);
+
+            buttonTransform.anchoredPosition = position;
+        }
+
+        public void BeginLetterDrag(int index)
+        {
+            if (isLevelCompletePanelOpen || gameSession == null)
+            {
+                return;
+            }
+
+            isDraggingLetters = true;
+            gameSession.ClearCurrentWord();
             gameSession.TrySelectLetter(index);
             UpdateUI();
+        }
+
+        public void ContinueLetterDrag(int index)
+        {
+            if (isLevelCompletePanelOpen || !isDraggingLetters || gameSession == null)
+            {
+                return;
+            }
+
+            gameSession.TrySelectLetter(index);
+            UpdateUI();
+        }
+
+        public void EndLetterDrag()
+        {
+            if (isLevelCompletePanelOpen || !isDraggingLetters || gameSession == null)
+            {
+                return;
+            }
+
+            isDraggingLetters = false;
+            SubmitCurrentWord();
+            ResetLetterButtonVisuals();
         }
 
         private void SubmitCurrentWord()
@@ -142,40 +229,35 @@ namespace LetterGarden.UI
             bool couldAdvanceBeforeSubmit = gameSession.CanAdvanceToNextLevel;
             WordSubmitResult result = gameSession.SubmitCurrentWord();
 
-            statusText.text = GetStatusMessage(result);
+            SetStatusText(GetStatusMessage(result));
 
             if (!couldAdvanceBeforeSubmit
                 && gameSession.CanAdvanceToNextLevel
                 && result == WordSubmitResult.RequiredWordFound)
             {
-                statusText.text = "Level Complete! Keep playing for bonus words.";
+                SetStatusText("Level Complete! Keep playing for bonus words.");
                 ShowLevelCompletePanel();
             }
 
             UpdateUI();
         }
 
-        private void ClearCurrentWord()
-        {
-            gameSession.ClearCurrentWord();
-            UpdateUI();
-        }
-
-        private void BackspaceLetter()
-        {
-            gameSession.BackspaceLetter();
-            UpdateUI();
-        }
-
         private void KeepPlaying()
         {
-            levelCompletePanel.SetActive(false);
-            statusText.text = "Keep playing for bonus words.";
+            HideLevelCompletePanel();
+            ShowLetterButtonContainer();
+            isLevelCompletePanelOpen = false;
+            ShowNextLevelAvailableButton();
+            SetStatusText("Keep playing for bonus words.");
         }
 
         private void LoadNextLevel()
         {
             int nextLevelIndex = currentLevelIndex + 1;
+            HideLevelCompletePanel();
+            HideNextLevelAvailableButton();
+            isLevelCompletePanelOpen = false;
+            isDraggingLetters = false;
 
             if (nextLevelIndex < levels.Count)
             {
@@ -183,8 +265,8 @@ namespace LetterGarden.UI
                 return;
             }
 
-            levelCompletePanel.SetActive(false);
-            statusText.text = "No more levels yet.";
+            HideLetterButtonContainer();
+            SetStatusText("No more levels yet.");
         }
 
         private void ShowLevelCompletePanel()
@@ -195,21 +277,69 @@ namespace LetterGarden.UI
             }
 
             hasShownLevelCompletePanel = true;
-            levelCompleteSummaryText.text = GetLevelCompleteSummaryText();
-            levelCompletePanel.SetActive(true);
-            nextLevelAvailableButton.gameObject.SetActive(true);
+            isLevelCompletePanelOpen = true;
+            isDraggingLetters = false;
+
+            if (levelCompleteSummaryText != null)
+            {
+                levelCompleteSummaryText.text = GetLevelCompleteSummaryText();
+            }
+
+            if (levelCompletePanel != null)
+            {
+                levelCompletePanel.SetActive(true);
+            }
+
+            HideLetterButtonContainer();
         }
 
         private void UpdateUI()
         {
-            currentWordText.text = string.IsNullOrEmpty(gameSession.CurrentWord) ? "_" : gameSession.CurrentWord;
-            foundWordsText.text = GetFoundWordsText();
-
-            for (int i = 0; i < letterButtons.Length; i++)
+            if (gameSession == null)
             {
-                bool hasMatchingLetter = i < gameSession.CurrentLevel.AvailableLetters.Count;
-                letterButtons[i].interactable = hasMatchingLetter && !gameSession.IsLetterSelected(i);
+                return;
             }
+
+            SetCurrentWordText(string.IsNullOrEmpty(gameSession.CurrentWord) ? "_" : gameSession.CurrentWord);
+            RenderRequiredWordBoard();
+            SetFoundWordsText(GetFoundWordsText());
+
+            for (int i = 0; i < spawnedLetterButtons.Count; i++)
+            {
+                Button button = spawnedLetterButtons[i];
+                if (button == null)
+                {
+                    continue;
+                }
+
+                bool isSelected = gameSession.IsLetterSelected(i);
+                button.interactable = true;
+                button.transform.localScale = isSelected ? Vector3.one * 1.12f : Vector3.one;
+            }
+        }
+
+        private void ResetLetterButtonVisuals()
+        {
+            foreach (Button button in spawnedLetterButtons)
+            {
+                if (button == null)
+                {
+                    continue;
+                }
+
+                button.interactable = true;
+                button.transform.localScale = Vector3.one;
+            }
+        }
+
+        private void RenderRequiredWordBoard()
+        {
+            if (requiredWordBoardView == null || gameSession == null)
+            {
+                return;
+            }
+
+            requiredWordBoardView.Render(gameSession.CurrentLevel.RequiredWords, gameSession.FoundRequiredWords);
         }
 
         private string GetStatusMessage(WordSubmitResult result)
@@ -246,14 +376,6 @@ namespace LetterGarden.UI
         private string GetFoundWordsText()
         {
             List<string> lines = new List<string>();
-            lines.Add("Required Words:");
-
-            foreach (string word in gameSession.CurrentLevel.RequiredWords)
-            {
-                lines.Add(GetVisibleRequiredWord(word));
-            }
-
-            lines.Add(string.Empty);
             lines.Add("Bonus Words Found:");
 
             if (gameSession.FoundBonusWords.Count == 0)
@@ -271,14 +393,76 @@ namespace LetterGarden.UI
             return string.Join("\n", lines);
         }
 
-        private string GetVisibleRequiredWord(string word)
+        private void HideLevelCompletePanel()
         {
-            if (gameSession.FoundRequiredWords.Contains(word))
+            if (levelCompletePanel != null)
             {
-                return word;
+                levelCompletePanel.SetActive(false);
             }
+        }
 
-            return string.Join(" ", new string('_', word.Length).ToCharArray());
+        private void ShowLetterButtonContainer()
+        {
+            if (letterButtonContainer != null)
+            {
+                letterButtonContainer.gameObject.SetActive(true);
+            }
+        }
+
+        private void HideLetterButtonContainer()
+        {
+            if (letterButtonContainer != null)
+            {
+                letterButtonContainer.gameObject.SetActive(false);
+            }
+        }
+
+        private void ShowNextLevelAvailableButton()
+        {
+            if (nextLevelAvailableButton != null)
+            {
+                nextLevelAvailableButton.gameObject.SetActive(true);
+            }
+        }
+
+        private void HideNextLevelAvailableButton()
+        {
+            if (nextLevelAvailableButton != null)
+            {
+                nextLevelAvailableButton.gameObject.SetActive(false);
+            }
+        }
+
+        private void SetCurrentWordText(string text)
+        {
+            if (currentWordText != null)
+            {
+                currentWordText.text = text;
+            }
+        }
+
+        private void SetFoundWordsText(string text)
+        {
+            if (foundWordsText != null)
+            {
+                foundWordsText.text = text;
+            }
+        }
+
+        private void SetStatusText(string text)
+        {
+            if (statusText != null)
+            {
+                statusText.text = text;
+            }
+        }
+
+        private void SetLevelText(string text)
+        {
+            if (levelText != null)
+            {
+                levelText.text = text;
+            }
         }
 
         [Serializable]
