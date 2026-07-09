@@ -15,13 +15,13 @@ namespace LetterGarden.Core
         /// <param name="dictionaryWords">The shared accepted word list.</param>
         /// <param name="availableLetters">The letters available in the level.</param>
         /// <param name="requiredWords">Words that should be treated as required, not bonus.</param>
-        /// <param name="minimumWordLength">The minimum allowed bonus word length.</param>
+        /// <param name="minimumWordLength">The minimum allowed dictionary word length.</param>
         /// <returns>Normalized bonus words for the level.</returns>
         public static IReadOnlyCollection<string> GenerateBonusWords(
             IEnumerable<string> dictionaryWords,
             IEnumerable<char> availableLetters,
             IEnumerable<string> requiredWords,
-            int minimumWordLength = 2)
+            int minimumWordLength = WordDictionary.DefaultMinimumWordLength)
         {
             if (dictionaryWords == null)
             {
@@ -41,23 +41,18 @@ namespace LetterGarden.Core
             List<char> normalizedLetters = availableLetters
                 .Select(char.ToUpperInvariant)
                 .ToList();
+            WordDictionary dictionary = WordDictionary.FromWords(dictionaryWords, minimumWordLength);
             HashSet<string> requiredWordSet = new HashSet<string>(
                 requiredWords
                     .Where(word => !string.IsNullOrWhiteSpace(word))
                     .Select(word => word.Trim().ToUpperInvariant()),
                 StringComparer.OrdinalIgnoreCase);
             HashSet<string> bonusWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int maximumWordLength = normalizedLetters.Count;
 
-            foreach (string dictionaryWord in dictionaryWords)
+            foreach (string normalizedWord in dictionary.Words)
             {
-                if (string.IsNullOrWhiteSpace(dictionaryWord))
-                {
-                    continue;
-                }
-
-                string normalizedWord = dictionaryWord.Trim().ToUpperInvariant();
-
-                if (normalizedWord.Length < minimumWordLength
+                if (normalizedWord.Length > maximumWordLength
                     || requiredWordSet.Contains(normalizedWord)
                     || !WordFormation.CanFormWord(normalizedWord, normalizedLetters))
                 {
