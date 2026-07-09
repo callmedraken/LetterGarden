@@ -64,5 +64,74 @@ namespace LetterGarden.Core
 
             return bonusWords.ToList().AsReadOnly();
         }
+
+        /// <summary>
+        /// Returns generated dictionary bonus words plus explicitly authored bonus words.
+        /// </summary>
+        /// <param name="dictionaryWords">The shared accepted word list.</param>
+        /// <param name="explicitBonusWords">Level-authored bonus words to include when valid and formable.</param>
+        /// <param name="availableLetters">The letters available in the level.</param>
+        /// <param name="requiredWords">Words that should be treated as required, not bonus.</param>
+        /// <param name="minimumDictionaryWordLength">The minimum allowed dictionary word length.</param>
+        /// <returns>Normalized bonus words for the level.</returns>
+        public static IReadOnlyCollection<string> GenerateBonusWords(
+            IEnumerable<string> dictionaryWords,
+            IEnumerable<string> explicitBonusWords,
+            IEnumerable<char> availableLetters,
+            IEnumerable<string> requiredWords,
+            int minimumDictionaryWordLength = WordDictionary.DefaultMinimumWordLength)
+        {
+            if (dictionaryWords == null)
+            {
+                throw new ArgumentNullException(nameof(dictionaryWords));
+            }
+
+            if (explicitBonusWords == null)
+            {
+                throw new ArgumentNullException(nameof(explicitBonusWords));
+            }
+
+            if (availableLetters == null)
+            {
+                throw new ArgumentNullException(nameof(availableLetters));
+            }
+
+            if (requiredWords == null)
+            {
+                throw new ArgumentNullException(nameof(requiredWords));
+            }
+
+            List<char> normalizedLetters = availableLetters
+                .Select(char.ToUpperInvariant)
+                .ToList();
+            HashSet<string> requiredWordSet = new HashSet<string>(
+                requiredWords
+                    .Where(word => !string.IsNullOrWhiteSpace(word))
+                    .Select(word => word.Trim().ToUpperInvariant()),
+                StringComparer.OrdinalIgnoreCase);
+            HashSet<string> bonusWords = new HashSet<string>(
+                GenerateBonusWords(
+                    dictionaryWords,
+                    normalizedLetters,
+                    requiredWordSet,
+                    minimumDictionaryWordLength),
+                StringComparer.OrdinalIgnoreCase);
+            WordDictionary explicitBonusDictionary = WordDictionary.FromWords(explicitBonusWords, 2);
+            int maximumWordLength = normalizedLetters.Count;
+
+            foreach (string explicitBonusWord in explicitBonusDictionary.Words)
+            {
+                if (explicitBonusWord.Length > maximumWordLength
+                    || requiredWordSet.Contains(explicitBonusWord)
+                    || !WordFormation.CanFormWord(explicitBonusWord, normalizedLetters))
+                {
+                    continue;
+                }
+
+                bonusWords.Add(explicitBonusWord);
+            }
+
+            return bonusWords.ToList().AsReadOnly();
+        }
     }
 }
