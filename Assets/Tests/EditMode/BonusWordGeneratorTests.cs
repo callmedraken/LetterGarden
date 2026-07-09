@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using LetterGarden.Core;
 using NUnit.Framework;
@@ -16,6 +17,18 @@ namespace LetterGarden.Core.Tests
                 .ToArray();
 
             CollectionAssert.Contains(bonusWords, "ATE");
+        }
+
+        [Test]
+        public void GenerateBonusWords_IncludesMultipleFormableRateDictionaryWords()
+        {
+            string[] bonusWords = BonusWordGenerator.GenerateBonusWords(
+                    new[] { "ATE", "EAT", "TEA" },
+                    "RATE".ToCharArray(),
+                    new[] { "RATE" })
+                .ToArray();
+
+            CollectionAssert.AreEquivalent(new[] { "ATE", "EAT", "TEA" }, bonusWords);
         }
 
         [Test]
@@ -69,6 +82,32 @@ namespace LetterGarden.Core.Tests
                 .ToArray();
 
             CollectionAssert.DoesNotContain(bonusWords, "DOG");
+        }
+
+        [Test]
+        public void GenerateBonusWords_MergesExplicitBonusWords_WhenTheyAreFormableAndNotRequired()
+        {
+            string[] bonusWords = BonusWordGenerator.GenerateBonusWords(
+                    Array.Empty<string>(),
+                    new[] { "AT" },
+                    "CAT".ToCharArray(),
+                    new[] { "CAT", "ACT" })
+                .ToArray();
+
+            CollectionAssert.AreEquivalent(new[] { "AT" }, bonusWords);
+        }
+
+        [Test]
+        public void GenerateBonusWords_ExcludesExplicitBonusWords_WhenRequiredOrNotFormable()
+        {
+            string[] bonusWords = BonusWordGenerator.GenerateBonusWords(
+                    Array.Empty<string>(),
+                    new[] { "CAT", "DOG" },
+                    "CAT".ToCharArray(),
+                    new[] { "CAT" })
+                .ToArray();
+
+            CollectionAssert.IsEmpty(bonusWords);
         }
 
         [Test]
