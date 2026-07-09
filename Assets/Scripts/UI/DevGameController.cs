@@ -15,6 +15,8 @@ namespace LetterGarden.UI
         [SerializeField] private TMP_Text levelText;
         [SerializeField] private RequiredWordBoardView requiredWordBoardView;
         [SerializeField] private DragPathView dragPathView;
+        [SerializeField] private BonusWordsPopupView bonusWordsPopupView;
+        [SerializeField] private Button bonusWordsButton;
         [SerializeField] private RectTransform letterButtonContainer;
         [SerializeField] private Button letterButtonPrefab;
         [SerializeField] private float letterButtonRadius = 170f;
@@ -32,16 +34,21 @@ namespace LetterGarden.UI
         private int currentLevelIndex;
         private bool hasShownLevelCompletePanel;
         private bool isLevelCompletePanelOpen;
+        private bool hasChosenKeepPlayingAfterCompletion;
+        private bool isBonusPopupOpen;
         private bool isDraggingLetters;
 
         private void Awake()
         {
             ResolveDragPathView();
+            ResolveBonusWordsPopupView();
         }
 
         private void Start()
         {
             ResolveDragPathView();
+            ResolveBonusWordsPopupView();
+            SetupBonusWordsButton();
             LoadLevels();
 
             if (keepPlayingButton != null)
@@ -82,9 +89,12 @@ namespace LetterGarden.UI
             gameSession = new GameSession(levels[currentLevelIndex]);
             hasShownLevelCompletePanel = false;
             isLevelCompletePanelOpen = false;
+            hasChosenKeepPlayingAfterCompletion = false;
+            isBonusPopupOpen = false;
             isDraggingLetters = false;
 
             HideLevelCompletePanel();
+            HideBonusWordsPopup();
             HideNextLevelAvailableButton();
             ShowLetterButtonContainer();
             ClearLetterDragPath();
@@ -124,15 +134,11 @@ namespace LetterGarden.UI
         {
             char[] availableLetters = levelData.letters.ToCharArray();
             string[] requiredWords = levelData.requiredWords ?? Array.Empty<string>();
-            List<string> acceptedBonusSource = new List<string>(dictionaryWords);
-
-            if (levelData.bonusWords != null)
-            {
-                acceptedBonusSource.AddRange(levelData.bonusWords);
-            }
+            string[] explicitBonusWords = levelData.bonusWords ?? Array.Empty<string>();
 
             IReadOnlyCollection<string> bonusWords = BonusWordGenerator.GenerateBonusWords(
-                acceptedBonusSource,
+                dictionaryWords,
+                explicitBonusWords,
                 availableLetters,
                 requiredWords);
 
@@ -237,7 +243,7 @@ namespace LetterGarden.UI
 
         public void BeginLetterDrag(int index)
         {
-            if (isLevelCompletePanelOpen || gameSession == null)
+            if (isLevelCompletePanelOpen || isBonusPopupOpen || gameSession == null)
             {
                 ClearLetterDragPath();
                 return;
@@ -254,9 +260,9 @@ namespace LetterGarden.UI
 
         public void ContinueLetterDrag(int index)
         {
-            if (isLevelCompletePanelOpen || !isDraggingLetters || gameSession == null)
+            if (isLevelCompletePanelOpen || isBonusPopupOpen || !isDraggingLetters || gameSession == null)
             {
-                if (isLevelCompletePanelOpen)
+                if (isLevelCompletePanelOpen || isBonusPopupOpen)
                 {
                     ClearLetterDragPath();
                 }
@@ -274,9 +280,9 @@ namespace LetterGarden.UI
 
         public void EndLetterDrag()
         {
-            if (isLevelCompletePanelOpen || !isDraggingLetters || gameSession == null)
+            if (isLevelCompletePanelOpen || isBonusPopupOpen || !isDraggingLetters || gameSession == null)
             {
-                if (isLevelCompletePanelOpen)
+                if (isLevelCompletePanelOpen || isBonusPopupOpen)
                 {
                     ClearLetterDragPath();
                 }
@@ -313,27 +319,32 @@ namespace LetterGarden.UI
             HideLevelCompletePanel();
             ShowLetterButtonContainer();
             isLevelCompletePanelOpen = false;
+            hasChosenKeepPlayingAfterCompletion = true;
             ClearLetterDragPath();
             ShowNextLevelAvailableButton();
             SetStatusText("Keep playing for bonus words.");
+            UpdateUI();
         }
 
         private void LoadNextLevel()
         {
             int nextLevelIndex = currentLevelIndex + 1;
             HideLevelCompletePanel();
+            HideBonusWordsPopup();
             isLevelCompletePanelOpen = false;
             isDraggingLetters = false;
             ClearLetterDragPath();
 
             if (nextLevelIndex < levels.Count)
             {
+                hasChosenKeepPlayingAfterCompletion = false;
                 HideNextLevelAvailableButton();
                 LoadLevel(nextLevelIndex);
                 return;
             }
 
             ShowLetterButtonContainer();
+            hasChosenKeepPlayingAfterCompletion = true;
             if (nextLevelAvailableButton != null)
             {
                 nextLevelAvailableButton.interactable = false;
@@ -352,7 +363,9 @@ namespace LetterGarden.UI
 
             hasShownLevelCompletePanel = true;
             isLevelCompletePanelOpen = true;
+            isBonusPopupOpen = false;
             isDraggingLetters = false;
+            HideBonusWordsPopup();
             ClearLetterDragPath();
 
             if (levelCompleteSummaryText != null)
@@ -379,6 +392,7 @@ namespace LetterGarden.UI
             SetCurrentWordText(string.IsNullOrEmpty(gameSession.CurrentWord) ? "_" : gameSession.CurrentWord);
             RenderRequiredWordBoard();
             SetFoundWordsText(GetFoundWordsText());
+            RenderBonusWordsPopupIfOpen();
 
             for (int i = 0; i < spawnedLetterButtons.Count; i++)
             {
@@ -485,6 +499,131 @@ namespace LetterGarden.UI
             }
         }
 
+        private void ResolveBonusWordsPopupView()
+        {
+            if (bonusWordsPopupView == null)
+            {
+                bonusWordsPopupView = FindFirstObjectByType<BonusWordsPopupView>();
+            }
+
+            if (bonusWordsPopupView == null)
+            {
+                Canvas parentCanvas = GetComponentInParent<Canvas>();
+                if (parentCanvas == null)
+                {
+                    parentCanvas = FindFirstObjectByType<Canvas>();
+                }
+
+                if (parentCanvas != null)
+                {
+                    bonusWordsPopupView = BonusWordsPopupView.CreateDefault(parentCanvas.transform);
+                }
+            }
+
+            if (bonusWordsPopupView != null)
+            {
+                bonusWordsPopupView.Initialize(CloseBonusWordsPopup);
+            }
+        }
+
+        private void SetupBonusWordsButton()
+        {
+            if (bonusWordsButton == null && foundWordsText != null)
+            {
+                bonusWordsButton = foundWordsText.GetComponent<Button>();
+
+                if (bonusWordsButton == null)
+                {
+                    bonusWordsButton = foundWordsText.gameObject.AddComponent<Button>();
+                }
+
+                bonusWordsButton.targetGraphic = foundWordsText;
+                bonusWordsButton.transition = Selectable.Transition.None;
+                foundWordsText.raycastTarget = true;
+            }
+
+            if (bonusWordsButton != null)
+            {
+                bonusWordsButton.onClick.RemoveListener(OpenBonusWordsPopup);
+                bonusWordsButton.onClick.AddListener(OpenBonusWordsPopup);
+            }
+        }
+
+        private void OpenBonusWordsPopup()
+        {
+            if (gameSession == null || isLevelCompletePanelOpen)
+            {
+                return;
+            }
+
+            ResolveBonusWordsPopupView();
+
+            if (bonusWordsPopupView == null)
+            {
+                return;
+            }
+
+            isBonusPopupOpen = true;
+            isDraggingLetters = false;
+            ClearLetterDragPath();
+            if (hasChosenKeepPlayingAfterCompletion)
+            {
+                bonusWordsPopupView.ShowProgress(
+                    gameSession.FoundBonusWords,
+                    gameSession.FoundBonusWords.Count,
+                    gameSession.CurrentLevel.BonusWords.Count);
+            }
+            else
+            {
+                bonusWordsPopupView.ShowFoundOnly(gameSession.FoundBonusWords);
+            }
+        }
+
+        private void CloseBonusWordsPopup()
+        {
+            HideBonusWordsPopup();
+            isBonusPopupOpen = false;
+            ClearLetterDragPath();
+        }
+
+        private void HideBonusWordsPopup()
+        {
+            if (bonusWordsPopupView != null)
+            {
+                bonusWordsPopupView.Hide();
+            }
+
+            isBonusPopupOpen = false;
+        }
+
+        private void RenderBonusWordsPopupIfOpen()
+        {
+            if (isBonusPopupOpen && bonusWordsPopupView != null && gameSession != null)
+            {
+                RenderBonusWordsPopup();
+            }
+        }
+
+        private void RenderBonusWordsPopup()
+        {
+            if (bonusWordsPopupView == null || gameSession == null)
+            {
+                return;
+            }
+
+            if (hasChosenKeepPlayingAfterCompletion)
+            {
+                bonusWordsPopupView.RenderProgress(
+                    gameSession.FoundBonusWords,
+                    gameSession.FoundBonusWords.Count,
+                    gameSession.CurrentLevel.BonusWords.Count);
+            }
+            else
+            {
+                bonusWordsPopupView.RenderFoundOnly(gameSession.FoundBonusWords);
+            }
+        }
+
         private Camera GetCanvasCamera(Transform uiTransform)
         {
             if (uiTransform == null)
@@ -531,35 +670,29 @@ namespace LetterGarden.UI
         private string GetLevelCompleteSummaryText()
         {
             return "Level Complete!\n\n"
+                + "All required words found.\n\n"
                 + "Required Words: "
                 + gameSession.FoundRequiredWords.Count
                 + " / "
                 + gameSession.CurrentLevel.RequiredWords.Count
                 + "\n"
-                + "Bonus Words: "
+                + "Bonus Words Found: "
                 + gameSession.FoundBonusWords.Count
-                + " / "
-                + gameSession.CurrentLevel.BonusWords.Count;
+                + "\n\n"
+                + "Keep playing for bonus words or continue.";
         }
 
         private string GetFoundWordsText()
         {
-            List<string> lines = new List<string>();
-            lines.Add("Bonus Words Found:");
-
-            if (gameSession.FoundBonusWords.Count == 0)
+            if (hasChosenKeepPlayingAfterCompletion)
             {
-                lines.Add("-");
-            }
-            else
-            {
-                foreach (string word in gameSession.FoundBonusWords)
-                {
-                    lines.Add(word);
-                }
+                return "Bonus Words: "
+                    + gameSession.FoundBonusWords.Count
+                    + " / "
+                    + gameSession.CurrentLevel.BonusWords.Count;
             }
 
-            return string.Join("\n", lines);
+            return "Bonus Words: " + gameSession.FoundBonusWords.Count;
         }
 
         private void HideLevelCompletePanel()

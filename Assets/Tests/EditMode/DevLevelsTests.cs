@@ -27,6 +27,36 @@ namespace LetterGarden.Core.Tests
             }
         }
 
+        [Test]
+        public void DevLevels_EachGenerateAtLeastOnePossibleBonusWord()
+        {
+            LevelCollection levelCollection = LoadDevLevels();
+            string[] dictionaryWords = LoadDictionaryWords();
+
+            foreach (LevelData levelData in levelCollection.levels)
+            {
+                string[] bonusWords = BonusWordGenerator.GenerateBonusWords(
+                        dictionaryWords,
+                        levelData.bonusWords ?? Array.Empty<string>(),
+                        levelData.letters.ToCharArray(),
+                        levelData.requiredWords ?? Array.Empty<string>())
+                    .ToArray();
+
+                Assert.GreaterOrEqual(
+                    bonusWords.Length,
+                    1,
+                    levelData.levelId + " should have at least one possible bonus word.");
+
+                foreach (string requiredWord in levelData.requiredWords ?? Array.Empty<string>())
+                {
+                    CollectionAssert.DoesNotContain(
+                        bonusWords,
+                        requiredWord,
+                        requiredWord + " is required and should not count as a bonus word.");
+                }
+            }
+        }
+
         private static LevelCollection LoadDevLevels()
         {
             TextAsset levelsJson = Resources.Load<TextAsset>("Levels/dev_levels");
@@ -37,6 +67,16 @@ namespace LetterGarden.Core.Tests
             Assert.IsNotNull(levelCollection.levels);
 
             return levelCollection;
+        }
+
+        private static string[] LoadDictionaryWords()
+        {
+            TextAsset dictionaryText = Resources.Load<TextAsset>("Dictionaries/common_words");
+            Assert.IsNotNull(dictionaryText);
+
+            return dictionaryText.text.Split(
+                new[] { '\r', '\n' },
+                StringSplitOptions.RemoveEmptyEntries);
         }
 
         private static bool CanFormWord(string word, string availableLetters)
