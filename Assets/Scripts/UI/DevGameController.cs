@@ -531,6 +531,7 @@ namespace LetterGarden.UI
         private string GetLevelCompleteSummaryText()
         {
             return "Level Complete!\n\n"
+                + "All required words found.\n\n"
                 + "Required Words: "
                 + gameSession.FoundRequiredWords.Count
                 + " / "
@@ -539,27 +540,17 @@ namespace LetterGarden.UI
                 + "Bonus Words: "
                 + gameSession.FoundBonusWords.Count
                 + " / "
-                + gameSession.CurrentLevel.BonusWords.Count;
+                + gameSession.CurrentLevel.BonusWords.Count
+                + "\n\n"
+                + "Keep playing for bonus words or continue.";
         }
 
         private string GetFoundWordsText()
         {
-            List<string> lines = new List<string>();
-            lines.Add("Bonus Words Found:");
-
-            if (gameSession.FoundBonusWords.Count == 0)
-            {
-                lines.Add("-");
-            }
-            else
-            {
-                foreach (string word in gameSession.FoundBonusWords)
-                {
-                    lines.Add(word);
-                }
-            }
-
-            return string.Join("\n", lines);
+            return "Bonus Words: "
+                + gameSession.FoundBonusWords.Count
+                + " / "
+                + gameSession.CurrentLevel.BonusWords.Count;
         }
 
         private void HideLevelCompletePanel()
